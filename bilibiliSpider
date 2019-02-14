@@ -1,0 +1,220 @@
+import re
+
+import requests
+from urllib.parse import urlencode
+from pyquery import PyQuery as pq
+from pymongo import MongoClient
+
+
+# client = MongoClient()
+# db = client['bilibili']
+# collection = db['bilibili']
+# max_page = 10
+
+# visitor_uid: 353788331
+# host_uid: 632887
+# offset_dynamic_id: 0
+# 209952913558413518
+# 194799513023299619
+# 182825809921749555
+
+class BiliBili_POST:
+    def __init__(self, bilibili_id):
+        self.bilibili_id = bilibili_id
+        self.base_url = 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?'
+        self.headers = {
+            'Host': 'api.vc.bilibili.com',
+            'Referer': 'https://space.bilibili.com/' + bilibili_id + '/dynamic',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+            'X-Requested-With': 'XMLHttpRequest',
+    }
+        self.params = {
+            'visitor_uid': '',
+            'host_uid': bilibili_id,
+            'offset_dynamic_id': '0',
+    }
+        self.url = self.base_url+urlencode(self.params)
+
+    def get_page(self):
+        try:
+            response = requests.get(self.url, headers=self.headers)
+            if response.status_code == 200:
+                return response.json()
+        except requests.ConnectionError as e:
+            print('Error', e.args)
+
+    def parse_page(self, json):
+        if json:
+            items = json.get('data').get('cards')
+            print(len(items))
+            for item in items:
+                post = {}
+                post_desc = item.get('desc')
+                post_type = post_desc.get('type')
+                post['type'] = post_type
+
+                if post_type == 1:
+                    post_body = item.get('card')
+                    post_body = eval(post_body).get('item')
+                    post['content'] = post_body.get('content')
+
+                elif post_type == 2:
+                    post_body = item.get('card')
+                    post_body = eval(post_body).get('item')
+                    post['title'] = post_body.get('title')
+                    post['description'] = post_body.get('description')
+                    post['category'] = post_body.get('category')
+                    post['pictures'] = []
+                    pics = post_body.get('pictures')
+                    if pics:
+                        for pic in pics:
+                            post['pictures'].append(pic.get('img_src').replace('\\', ''))
+
+                elif post_type == 8:
+                    post_body = item.get('card')
+                    post_body = post_body.replace('\\n', '')
+                    post_body = post_body.replace('\\', '')
+
+                    pattern = re.compile('"desc":"(.*?)".*?"duration":(.*?),.*?"dynamic":"(.*?)".*?'
+                                         'video/(.*?)/'
+                                         '.*?"pic":"(.*?)".*?"coin":(.*?),.*?"favorite":(.*?),'
+                                         '.*?"reply":(.*?),.*?"share":(.*?),'
+                                         '.*?"title":"(.*?)"', re.S)
+                    find_list = re.findall(pattern, post_body)
+                    post['desc'] = find_list[0][0]
+                    post['duration'] = find_list[0][1]
+                    post['dynamic'] = find_list[0][2]
+                    post['video_url'] = 'https://www.bilibili.com/video/av' + find_list[0][3] + '/'
+                    post['pic'] = find_list[0][4]
+                    post['coin'] = find_list[0][5]
+                    post['favorite'] = find_list[0][6]
+                    post['reply'] = find_list[0][7]
+                    post['share'] = find_list[0][8]
+                    post['title'] = find_list[0][9]
+
+
+                else:
+                    post_body = item.get('card')
+                    # print('----'+post_body)
+                    post_body = eval(post_body).get('item')
+                    post['cover'] = post_body.get('cover').get('default').replace('\\', '')
+                    post['description'] = post_body.get('description')
+                    post['video_playurl'] = post_body.get('video_playurl').replace('\\', '')
+
+                post['timestamp'] = post_desc.get('timestamp')
+                post['like'] = post_desc.get('like')
+                post['view'] = post_desc.get('view')
+                post['repost'] = post_desc.get('repost')
+                print(post)
+
+
+def get_latest_bilibili_post():
+    post = BiliBili_POST('632887')
+    post.parse_page(post.get_page())
+
+get_latest_bilibili_post()
+
+
+
+def get_page(uid):
+    base_url = 'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?'
+    headers = {
+        'Host': 'api.vc.bilibili.com',
+        'Referer': 'https://space.bilibili.com/' + uid + '/dynamic',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+        'X-Requested-With': 'XMLHttpRequest',
+    }
+    params = {
+        'visitor_uid': '',
+        'host_uid': uid,
+        'offset_dynamic_id': '0',
+    }
+    url = base_url + urlencode(params)
+
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json()
+    except requests.ConnectionError as e:
+        print('Error', e.args)
+# 类型1，2，8，16
+
+def parse_page(json):
+    if json:
+        items = json.get('data').get('cards')
+        print(len(items))
+        for item in items:
+            post = {}
+            post_desc = item.get('desc')
+            post_type = post_desc.get('type')
+            post['type'] = post_type
+
+            if post_type == 1:
+                post_body = item.get('card')
+                post_body = eval(post_body).get('item')
+                post['content'] = post_body.get('content')
+
+            elif post_type == 2:
+                post_body = item.get('card')
+                post_body = eval(post_body).get('item')
+                post['title'] = post_body.get('title')
+                post['description'] = post_body.get('description')
+                post['category'] = post_body.get('category')
+                post['pictures'] = []
+                pics = post_body.get('pictures')
+                if pics:
+                    for pic in pics:
+                        post['pictures'].append(pic.get('img_src').replace('\\', ''))
+
+            elif post_type == 8:
+                post_body = item.get('card')
+                post_body = post_body.replace('\\n','')
+                post_body = post_body.replace('\\','')
+
+                pattern = re.compile('"desc":"(.*?)".*?"duration":(.*?),.*?"dynamic":"(.*?)".*?'
+                                     'video/(.*?)/'
+                                     '.*?"pic":"(.*?)".*?"coin":(.*?),.*?"favorite":(.*?),'
+                                     '.*?"reply":(.*?),.*?"share":(.*?),'
+                                     '.*?"title":"(.*?)"', re.S)
+                find_list = re.findall(pattern,post_body)
+                post['desc'] = find_list[0][0]
+                post['duration'] = find_list[0][1]
+                post['dynamic'] = find_list[0][2]
+                post['video_url'] = 'https://www.bilibili.com/video/av'+find_list[0][3]+'/'
+                post['pic'] = find_list[0][4]
+                post['coin'] = find_list[0][5]
+                post['favorite'] = find_list[0][6]
+                post['reply'] = find_list[0][7]
+                post['share'] = find_list[0][8]
+                post['title'] = find_list[0][9]
+
+
+            else:
+                post_body = item.get('card')
+                # print('----'+post_body)
+                post_body = eval(post_body).get('item')
+                post['cover'] = post_body.get('cover').get('default').replace('\\', '')
+                post['description'] = post_body.get('description')
+                post['video_playurl'] = post_body.get('video_playurl').replace('\\', '')
+
+            post['timestamp'] = post_desc.get('timestamp')
+            post['like'] = post_desc.get('like')
+            post['view'] = post_desc.get('view')
+            post['repost'] = post_desc.get('repost')
+            yield post
+
+
+def save_to_mongo(result):
+    # if collection.insert(result):
+    #     print('Saved to Mongo')
+    pass
+
+
+# if __name__ == '__main__':
+#     uid = '用户ID'
+#     json = get_page(uid)
+#     results = parse_page(json)
+#     for result in results:
+#         print(result)
+        # save_to_mongo(result)
